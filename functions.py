@@ -2,6 +2,8 @@ import os
 import pandas as pd
 import numpy as np
 import xarray as xr
+from scipy.spatial.distance import pdist, squareform
+
 
 def process_data(data_dir):
     # List of files in the directory
@@ -59,3 +61,73 @@ def calc_corr_matrix(data_array, headers):
     correlation_dataset = xr.Dataset({'correlation_matrix': correlation_data_array})
 
     return correlation_3d, correlation_dataset, correlation_data_array
+
+import numpy as np
+import pandas as pd
+
+def split_into_windows_and_compute_correlation(data, delta):
+    num_subjects, num_timepoints, num_structures = data.shape
+    num_windows = num_timepoints // delta
+    
+    # Inicializar un array para almacenar las matrices de correlación
+    corr_matrices = np.zeros((num_structures, num_structures, num_subjects, num_windows))
+    
+    # Calcular las matrices de correlación para cada ventana
+    for subj in range(num_subjects):
+        for win in range(num_windows):
+            start_idx = win * delta
+            end_idx = start_idx + delta
+            window_data = data[subj, start_idx:end_idx, :]
+            
+            # Calcular la matriz de correlación para la ventana actual
+            corr_matrix = np.corrcoef(window_data, rowvar=False)
+            corr_matrices[:, :, subj, win] = corr_matrix
+    
+    return corr_matrices
+
+
+
+
+import numpy as np
+from scipy.spatial.distance import pdist, squareform
+
+def compute_norm_distances(corr_matrices_structure):
+    num_structures, num_subjects, num_windows = corr_matrices_structure.shape
+    
+    # Inicializar un array para almacenar las matrices de distancias
+    norm_distances = np.zeros((num_windows, num_windows, num_subjects))
+    
+    for subj in range(num_subjects):
+        # Extraer las ventanas para el sujeto actual
+        windows = corr_matrices_structure[:, subj, :].T  # Transponer para obtener (33, 61)
+        
+        # Calcular las distancias de pares
+        dist_matrix = squareform(pdist(windows, 'euclidean'))
+        norm_distances[:, :, subj] = dist_matrix
+    
+    return norm_distances
+
+def flatten_distance_matrices(norm_distances):
+    num_windows, _, num_subjects = norm_distances.shape
+    
+    # Inicializar un array para almacenar los vectores aplanados
+    flattened_distances = np.zeros((num_subjects, num_windows * num_windows))
+    
+    for subj in range(num_subjects):
+        # Aplanar la matriz de distancias para el sujeto actual
+        flattened_distances[subj, :] = norm_distances[:, :, subj].flatten()
+    
+    return flattened_distances
+
+
+
+
+
+
+
+
+
+
+
+
+
